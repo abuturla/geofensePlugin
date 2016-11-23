@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="buildfire" content="disableTheme,disableFastClick">
+
+    <!-- JS -->
+    <script src="../../../scripts/buildfire.js"></script>
+
+    <script>
+        var highAccuracy, optionsTag = "geoInfo", itemsTag = "geoActions";
+        var options, items, counter;
+        var lat, long;
+
+        function init() {
+            counter = 0;
+            var tmr = setInterval(function () {
+                counter++;
+
+                highAccuracy = (options.highAccuracy) ? options.highAccuracy : false;
+
+                buildfire.geo.getCurrentPosition({enableHighAccuracy: highAccuracy}, function(error, position){
+                    if(error){
+                        console.error(error);
+                    }
+                    else{
+                        var currentLat = position.coords.latitude;
+                        var currentLong = position.coords.longitude;
+
+                        localStorage.setItem("lat", currentLat);
+                        localStorage.setItem("long", currentLong);
+
+                        var distanceFrom;
+
+                        //TODO: The controller only returns a single action, not an array of actions
+
+                        //iterate items and perform actions that apply
+                        items.forEach(function(item){
+
+                            distanceFrom = distance(currentLat, currentLong,
+                                    item.data.epicenter.coordinates.lat, item.data.epicenter.coordinates.lng, 'N');
+
+                            console.warn('distanceFrom', distanceFrom);
+
+                            if (distanceFrom < item.data.radius) {
+                                Buildfire.actionItems.execute(item.data.actionToPerform);
+
+                                //TODO: Determine if we only want to fire once
+                                clearInterval(tmr);
+                            }
+
+                        });
+                    }
+                });
+            }, 1000);
+        }
+
+        //By default get the settings and of the items
+        buildfire.datastore.get(optionsTag, function(err,obj){
+            if(obj){
+
+                console.warn(optionsTag, obj.data);
+                options = obj.data;
+
+                buildfire.datastore.get(itemsTag, function(err,obj){
+                    if(obj){
+
+                        console.warn(itemsTag, obj.data);
+                        items = obj.data;
+
+                        init();
+                    }
+                });
+            }
+        });
+
+        //TODO: This isn't reloading options, so this doesn't do jack-squat
+        buildfire.datastore.onUpdate(function(){
+            init();
+        });
+
+        //Pulled from legacy code
+        function distance(lat1, lon1, lat2, lon2, unit) {
+            var radlat1 = Math.PI * lat1 / 180;
+            var radlat2 = Math.PI * lat2 / 180;
+            var theta = lon1 - lon2;
+            var radtheta = Math.PI * theta / 180;
+            var dist = Math.sin(radlat1) * Math.sin(radlat2) + Math.cos(radlat1) * Math.cos(radlat2) * Math.cos(radtheta);
+            dist = Math.acos(dist);
+            dist = dist * 180 / Math.PI;
+            dist = dist * 60 * 1.1515;
+            if (unit == "K") {
+                dist = dist * 1.609344
+            }
+            if (unit == "N") {
+                dist = dist * 0.8684
+            }
+            return dist;
+        }
+    </script>
+
+</head>
+</html>
